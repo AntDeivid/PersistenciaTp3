@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager, asynccontextmanager
 from typing import Any
@@ -7,6 +8,7 @@ from fastapi import FastAPI, APIRouter
 from src.app.core.config import AppSettings, EnvironmentSettings
 from src.app.core.db.database import database
 
+logger = logging.getLogger(__name__)
 
 # --------------------------- database ---------------------------
 async def connect_to_db():
@@ -25,6 +27,7 @@ def lifespan_factory(
         yield
         await disconnect_from_db()
 
+    logger.info("Application lifespan created successfully")
     return lifespan
 
 def create_application(
@@ -40,4 +43,6 @@ def create_application(
     application = FastAPI(lifespan=lifespan, **kwargs)
     application.include_router(router)
 
+    logger.info("Application created successfully")
+    logger.info(f"Application started: {settings.APP_NAME}")
     return application
