@@ -20,4 +20,8 @@ class Database:
         if cls.client:
             cls.client.close()
 
+    @classmethod
+    def get_collection(cls, collection_name: str):
+        return cls.db[collection_name]
+
 database = Database()
