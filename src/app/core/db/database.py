@@ -9,8 +9,11 @@ class Database:
 
     @classmethod
     async def connect(cls):
-        cls.client = AsyncIOMotorClient(settings.MONGO_URI)
-        cls.db = cls.client[settings.MONGO_DB]
+        try:
+            cls.client = AsyncIOMotorClient(settings.MONGO_URI)
+            cls.db = cls.client[settings.MONGO_DB]
+        except Exception as e:
+            print(f"An error occurred while connecting to the database: {e}")
 
     @classmethod
     async def disconnect(cls):

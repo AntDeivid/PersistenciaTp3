@@ -20,10 +20,9 @@ class DatabaseSettings:
 class MongoSettings(DatabaseSettings):
     MONGO_USER: str = config("MONGO_USER", default="root")
     MONGO_PASSWORD: str = config("MONGO_PASSWORD", default="example")
-    MONGO_SERVER: str = config("MONGO_SERVER", default="localhost")
-    MONGO_PORT: int = config("MONGO_PORT", default=27017)
+    MONGO_CLUSTER: str = config("MONGO_CLUSTER", default="localhost")
     MONGO_DB: str = config("MONGO_DB", default="tp3")
-    MONGO_URI: str = f"mongodb://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_SERVER}:{MONGO_PORT}/{MONGO_DB}"
+    MONGO_URI: str = config("MONGO_URI", default=f"mongodb+srv://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_CLUSTER}/{MONGO_DB}?retryWrites=true&w=majority")
 
 class EnvironmentOption(Enum):
     DEVELOPMENT = "development"
