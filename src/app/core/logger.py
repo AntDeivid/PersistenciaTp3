@@ -11,25 +11,22 @@ def setup_logging():
     # Arquivo de log
     LOG_FILE_PATH = os.path.join(LOG_DIR, 'app.log')
 
-    # Configuração do Logger
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-    # Criação do logger
+    # Criação do logger (Obtém o logger principal)
     logger = logging.getLogger('app_logger')
+    logger.setLevel(logging.INFO)  # Define o nível do logger
 
-    # Verifica se o logger já tem handlers
-    if not logger.handlers:
+    # Verifica se o logger já tem handlers (para evitar duplicatas se setup_logging for chamado novamente)
+    if not logger.hasHandlers():
         # Handler de arquivo rotativo
         file_handler = RotatingFileHandler(LOG_FILE_PATH, maxBytes=10 * 1024 * 1024, backupCount=5)
-        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s') # Inclui o nome do logger
+        file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
         # Handler para console (opcional)
         console_handler = logging.StreamHandler()
-        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        console_handler.setFormatter(formatter)  # Use o mesmo formatter para consistência
         logger.addHandler(console_handler)
 
     print("Configuração de logging realizada com sucesso!")
-
-setup_logging()
+    return logger # Retorna o logger configurado
