@@ -4,7 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from src.app.core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('app_logger.startup')
 
 class Database:
     client: AsyncIOMotorClient = None
@@ -15,9 +15,9 @@ class Database:
         try:
             cls.client = AsyncIOMotorClient(settings.MONGO_URI)
             cls.db = cls.client[settings.MONGO_DB]
-            logger.info(f"Connected to the database: {settings.MONGO_DB}")
+            logger.info("Connected to the database")
         except Exception as e:
-            logger.error(f"An error occurred while connecting to the database: {e}")
+            logger.error(f"Error connecting to the database: {e}")
 
     @classmethod
     async def disconnect(cls):
