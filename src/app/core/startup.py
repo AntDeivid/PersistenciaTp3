@@ -8,7 +8,7 @@ from fastapi import FastAPI, APIRouter
 from src.app.core.config import AppSettings, EnvironmentSettings
 from src.app.core.db.database import database
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('app_logger.startup')
 
 # --------------------------- database ---------------------------
 async def connect_to_db():
