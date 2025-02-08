@@ -66,7 +66,10 @@ async def deletar_pagamento(pagamento_id: str, pagamento_repo: PagamentoReposito
         raise HTTPException(status_code=404, detail="Pagamento não encontrado ou ID inválido")
     return  
 
-# @pagamento_router.get("/pendentes/usuario")
-# async def obter_pagamentos_pendentes_por_usuario(pagamento_repo: PagamentoRepository = Depends(get_pagamento_repository)):
-#     pagamentos = await pagamento_repo.get_pagamentos_pendentes_por_usuario()
-#     return pagamentos
+@pagamento_router.get("/pendentes/usuario")
+async def obter_pagamentos_pendentes_por_usuario(
+    usuario_id: Optional[str] = Query(None, description="Optional user ID to filter by"),
+    pagamento_repo: "PagamentoRepository" = Depends(get_pagamento_repository)
+):
+    pagamentos = await pagamento_repo.get_pagamentos_pendentes_por_usuario(usuario_id=usuario_id)
+    return pagamentos
