@@ -34,7 +34,7 @@ def generate_random_data(n=15, random_generator=None):
                 email=f"usuario{i}@email.com",
                 celular=f"1199999{str(i).zfill(4)}",
                 cpf=f"{str(i).zfill(3)}.{str(i+1).zfill(3)}.{str(i+2).zfill(3)}-{str(i%10).zfill(2)}"
-            ).model_dump(by_alias=True) #converte o modelo pydantic em um dicionario, necessário para inserir no mongoDB
+            ).model_dump(exclude={"id"}, by_alias=True) #converte o modelo pydantic em um dicionario, necessário para inserir no mongoDB
         )
 
     veiculos = []
@@ -47,7 +47,7 @@ def generate_random_data(n=15, random_generator=None):
                 marca=marcas[i % len(marcas)],
                 placa=f"ABC{str(i).zfill(3)}",
                 ano=2010 + (i % 13)
-            ).model_dump(by_alias=True)
+            ).model_dump(exclude={"id"}, by_alias=True)
         )
 
     pagamentos = []
@@ -59,7 +59,7 @@ def generate_random_data(n=15, random_generator=None):
                 forma_pagamento=formas_pagamento[i % len(formas_pagamento)],
                 vencimento=datetime.now() + timedelta(days=random_generator.randint(1, 30)),
                 pago=random_generator.choice([True, False])
-            ).model_dump(by_alias=True)
+            ).model_dump(exclude={"id"}, by_alias=True)
         )
 
     manutencoes = []
@@ -71,7 +71,7 @@ def generate_random_data(n=15, random_generator=None):
                 tipo_manutencao=tipos_manutencao[i % len(tipos_manutencao)],
                 custo=random_generator.uniform(100.0, 1000.0),
                 observacao=f"Manutenção de rotina {i}"
-            ).model_dump(by_alias=True)
+            ).model_dump(exclude={"id"}, by_alias=True)
         )
 
 
@@ -105,19 +105,23 @@ async def populate_database(COLLECTION_USUARIO, COLLECTION_VEICULO, COLLECTION_P
 
     # Inserir dados em lote
     if usuarios:
-        await COLLECTION_USUARIO.insert_many(usuarios)
+        for usuario in usuarios:
+            await COLLECTION_USUARIO.insert_one(usuario)
         print(f"Inseridos {len(usuarios)} documentos em {COLLECTION_USUARIO.name}")
 
     if veiculos:
-        await COLLECTION_VEICULO.insert_many(veiculos)
+        for veiculo in veiculos:
+            await COLLECTION_VEICULO.insert_one(veiculo)
         print(f"Inseridos {len(veiculos)} documentos em {COLLECTION_VEICULO.name}")
 
     if pagamentos:
-        await COLLECTION_PAGAMENTO.insert_many(pagamentos)
+        for pagamento in pagamentos:
+            await COLLECTION_PAGAMENTO.insert_one(pagamento)
         print(f"Inseridos {len(pagamentos)} documentos em {COLLECTION_PAGAMENTO.name}")
 
     if manutencoes:
-        await COLLECTION_MANUTENCAO.insert_many(manutencoes)
+        for manutencao in manutencoes:
+            await COLLECTION_MANUTENCAO.insert_one(manutencao)
         print(f"Inseridos {len(manutencoes)} documentos em {COLLECTION_MANUTENCAO.name}")
 
 async def generate_contratos(COLLECTION_USUARIO, COLLECTION_VEICULO, COLLECTION_PAGAMENTO, random_generator, n=15):
@@ -147,7 +151,7 @@ async def generate_contratos(COLLECTION_USUARIO, COLLECTION_VEICULO, COLLECTION_
                 pagamento_id=str(pagamento_id),
                 data_inicio=data_inicio,
                 data_fim=data_fim
-            ).model_dump(by_alias=True)
+            ).model_dump(exclude={"id"}, by_alias=True)
         )
     return contratos
 
@@ -170,7 +174,7 @@ async def generate_veiculo_manutencoes(COLLECTION_VEICULO, COLLECTION_MANUTENCAO
             VeiculoManutencao(
                 veiculo_id=str(veiculo_id),
                 manutencao_id=str(manutencao_id)
-            ).model_dump(by_alias=True)
+            ).model_dump(exclude={"id"}, by_alias=True)
         )
     return veiculo_manutencoes
 
@@ -182,10 +186,11 @@ async def populate_collection(collection_name, data):
         #É necessário converter as datas para ISODate antes de inserir em contratos
         if(collection_name == database.get_collection("contratos")): #COLLECTION_CONTRATO):
             for item in data:
-                item['data_inicio'] = datetime.fromisoformat(item['data_inicio'])
-                item['data_fim'] = datetime.fromisoformat(item['data_fim'])
+                item['data_inicio'] = item['data_inicio']
+                item['data_fim'] = item['data_fim']
 
-        await collection_name.insert_many(data)
+        for item in data:
+            await collection_name.insert_one(item)
         print(f"Inseridos {len(data)} documentos em {collection_name.name}")
     else:
         print(f"Nenhum dado para inserir em {collection_name.name}")
@@ -203,9 +208,9 @@ async def main():
     COLLECTION_VEICULO = database.get_collection("veiculos")
     COLLECTION_VEICULO_MANUTENCAO = database.get_collection("veiculo_manutencoes")
 
-    usuarios, veiculos, pagamentos, manutencoes = generate_random_data(15, random_generator)
+    # usuarios, veiculos, pagamentos, manutencoes = generate_random_data(15, random_generator)
 
-    await populate_database(COLLECTION_USUARIO, COLLECTION_VEICULO, COLLECTION_PAGAMENTO, COLLECTION_MANUTENCAO, usuarios, veiculos, pagamentos, manutencoes)
+    # await populate_database(COLLECTION_USUARIO, COLLECTION_VEICULO, COLLECTION_PAGAMENTO, COLLECTION_MANUTENCAO, usuarios, veiculos, pagamentos, manutencoes)
 
     contratos = await generate_contratos(COLLECTION_USUARIO, COLLECTION_VEICULO, COLLECTION_PAGAMENTO, random_generator, 15)
     veiculo_manutencoes = await generate_veiculo_manutencoes(COLLECTION_VEICULO, COLLECTION_MANUTENCAO, random_generator, 15)
