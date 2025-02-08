@@ -10,7 +10,7 @@ from src.app.models.veiculo import Veiculo
 
 class VeiculoRepository:
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger("app_logger.repositories.veiculo_repository")
         self.collection = database.get_collection("veiculos")
 
     async def create(self, veiculo: Veiculo) -> Veiculo:

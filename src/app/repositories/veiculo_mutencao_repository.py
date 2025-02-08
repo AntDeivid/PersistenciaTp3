@@ -11,7 +11,7 @@ from src.app.models.veiculo_manutencao import VeiculoManutencao
 
 class VeiculoManutencaoRepository:
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger("app_logger.repositories.veiculo_manutencao_repository")
         self.collection = database.get_collection("veiculo_manutencoes")
 
     async def create(self, veiculo_manutencao: VeiculoManutencao) -> VeiculoManutencao:
