@@ -90,54 +90,66 @@ class ContratoRepository:
                      limit: int = 10) -> PaginationResult:
         pipeline = []
 
-        # Se precisar filtrar por placa, adiciona os estágios necessários
+        if not placa and not nome_usuario:
+            pipeline.append({"$match": {}})
+
         if placa:
             pipeline.extend([
-                {"$lookup": {"from": "veiculos", "localField": "veiculo_id", "foreignField": "_id", "as": "veiculo"}},
-                {"$unwind": "$veiculo"},  # Sem preserveNullAndEmptyArrays para garantir match correto
+                {"$lookup": {
+                    "from": "veiculos",
+                    "localField": "veiculo_id",
+                    "foreignField": "_id",
+                    "as": "veiculo"
+                }},
+                {"$unwind": {"path": "$veiculo", "preserveNullAndEmptyArrays": True}},
                 {"$match": {"veiculo.placa": placa}}
             ])
 
-        # Se precisar filtrar por nome de usuário, adiciona os estágios necessários
         if nome_usuario:
             pipeline.extend([
-                {"$set": {"usuario_id": {"$toObjectId": "$usuario_id"}}},
-                {"$lookup": {"from": "usuarios", "localField": "usuario_id", "foreignField": "_id", "as": "usuario"}},
-                {"$unwind": "$usuario"},
+                {"$lookup": {
+                    "from": "usuarios",
+                    "localField": "usuario_id",
+                    "foreignField": "_id",
+                    "as": "usuario"
+                }},
+                {"$unwind": {"path": "$usuario", "preserveNullAndEmptyArrays": True}},
                 {"$match": {"usuario.nome": nome_usuario}}
             ])
 
-        # Criar pipeline separada para contagem antes de aplicar paginação
         count_pipeline = pipeline + [{"$count": "total_items"}]
         total_items_cursor = await self.collection.aggregate(count_pipeline).to_list(length=1)
         total_items = total_items_cursor[0]["total_items"] if total_items_cursor else 0
 
-        # Aplicar paginação na consulta principal
+        # Paginação
         pagination_pipeline = pipeline + [
-            {"$sort": {"_id": ASCENDING}},  # Garante uma ordenação consistente
+            {"$sort": {"_id": ASCENDING}},
             {"$skip": (page - 1) * limit},
             {"$limit": limit},
             {"$project": self._project_contrato()}
         ]
 
         contratos = await self.collection.aggregate(pagination_pipeline).to_list(length=limit)
+        print(contratos)
         number_of_pages = (total_items + limit - 1) // limit
 
-        contratos_dto = [ContratoDTO.from_model(Contrato(
-            id=ObjectId(contrato["_id"]) if ObjectId.is_valid(contrato["_id"]) else None,
-            usuario_id=ObjectId(contrato["usuario_id"]) if ObjectId.is_valid(contrato["usuario_id"]) else None,
-            veiculo_id=ObjectId(contrato["veiculo_id"]) if ObjectId.is_valid(contrato["veiculo_id"]) else None,
-            pagamento_id=ObjectId(contrato["pagamento_id"]) if contrato.get("pagamento_id") and ObjectId.is_valid(contrato["pagamento_id"]) else None,
-            data_inicio=contrato["data_inicio"],
-            data_fim=contrato["data_fim"]
-        )) for contrato in contratos]
+        for contrato in contratos:
+            contrato["_id"] = str(contrato["_id"])
+            if "usuario_id" in contrato and isinstance(contrato["usuario_id"], ObjectId):
+                contrato["usuario_id"] = str(contrato["usuario_id"])
+            if "veiculo_id" in contrato and isinstance(contrato["veiculo_id"], ObjectId):
+                contrato["veiculo_id"] = str(contrato["veiculo_id"])
+            if "pagamento_id" in contrato and isinstance(contrato["pagamento_id"], ObjectId):
+                contrato["pagamento_id"] = str(contrato["pagamento_id"])
+
+        print("contratos", contratos)
 
         return PaginationResult(
             page=page,
             limit=limit,
             total_items=total_items,
             number_of_pages=number_of_pages,
-            data=contratos_dto
+            data=contratos
         )
 
     async def get_contratos_by_veiculo_marca_pagamento_pago(self, marca: str, pagamento_pago: Optional[bool] = None) -> List[ContratoDTO]:
