@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import Optional
 
+from bson import ObjectId
 from pydantic import BaseModel, Field
 
 
 class Pagamento(BaseModel):
-    id: Optional[str] = Field(default=None, alias="_id")
+    id: Optional[ObjectId] = Field(default=None, alias="_id")
     valor: float = Field(...)
     forma_pagamento: str = Field(...)
     vencimento: datetime = Field(...)

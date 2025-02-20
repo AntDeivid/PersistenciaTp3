@@ -1,10 +1,11 @@
 from typing import Optional
 
+from bson import ObjectId
 from pydantic import BaseModel, Field
 
 
 class Veiculo(BaseModel):
-    id: Optional[str] = Field(default=None, alias="_id")
+    id: Optional[ObjectId] = Field(default=None, alias="_id")
     modelo: str = Field(...)
     marca: str = Field(...)
     placa: str = Field(...)

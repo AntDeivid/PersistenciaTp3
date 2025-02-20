@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class Usuario(BaseModel):
-    id: Optional[str] = Field(default=None, alias="_id")
+    id: Optional[ObjectId] = Field(default=None, alias="_id")
     nome: str = Field(...)
     email: str = Field(...)
     celular: Optional[str] = Field(default=None)

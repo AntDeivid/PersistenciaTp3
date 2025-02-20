@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import Optional
 
+from bson import ObjectId
 from pydantic import BaseModel, Field
 
 
 class Manutencao(BaseModel):
-    id: Optional[str] = Field(default=None, alias="_id")
+    id: Optional[ObjectId] = Field(default=None, alias="_id")
     data: datetime = Field(...)
     tipo_manutencao: str = Field(...)
     custo: float = Field(...)

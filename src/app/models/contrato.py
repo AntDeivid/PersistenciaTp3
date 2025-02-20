@@ -1,14 +1,15 @@
 from datetime import datetime
 from typing import Optional
 
+from bson import ObjectId
 from pydantic import BaseModel, Field
 
 
 class Contrato(BaseModel):
-    id: Optional[str] = Field(default=None, alias="_id")
-    usuario_id: str = Field(...)
-    veiculo_id: str = Field(...)
-    pagamento_id: Optional[str] = Field(default=None)
+    id: Optional[ObjectId] = Field(default=None, alias="_id")
+    usuario_id: ObjectId = Field(...)
+    veiculo_id: ObjectId = Field(...)
+    pagamento_id: Optional[ObjectId] = Field(default=None)
     data_inicio: datetime = Field(...)
     data_fim: datetime = Field(...)
 
