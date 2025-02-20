@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 from bson import ObjectId
+from pymongo import ASCENDING
 
 from src.app.core.db.database import database
 from src.app.models.contrato import Contrato
@@ -32,7 +33,8 @@ class ContratoRepository:
 
     async def get_by_id(self, contrato_id: str) -> Contrato | None:
         try:
-            contrato = await self.collection.find_one({"_id": contrato_id})
+            _id = ObjectId(contrato_id)
+            contrato = await self.collection.find_one({"_id": _id})
 
             if not contrato:
                 return None
@@ -66,6 +68,7 @@ class ContratoRepository:
         cursor = self.collection.find(query).skip((page - 1) * limit).limit(limit)
         contratos = []
         async for document in cursor:
+            document["_id"] = str(document["_id"])
             contratos.append(Contrato(**document))
 
         return PaginationResult(
@@ -79,24 +82,46 @@ class ContratoRepository:
     async def get_contratos_by_usuario_id(self, usuario_id: str) -> List[Contrato]:
         contratos = []
         async for document in self.collection.find({"usuario_id": usuario_id}):
+            document["_id"] = str(document["_id"])
             contratos.append(Contrato(**document))
         return contratos
 
     async def search(self, placa: Optional[str] = None, nome_usuario: Optional[str] = None, page: int = 1,
                      limit: int = 10) -> PaginationResult:
-        query = {}
+        pipeline = []
+
+        # Se precisar filtrar por placa, adiciona os estágios necessários
         if placa:
-            query["placa"] = {"$regex": placa, "$options": "i"}
+            pipeline.extend([
+                {"$lookup": {"from": "veiculos", "localField": "veiculo_id", "foreignField": "_id", "as": "veiculo"}},
+                {"$unwind": "$veiculo"},  # Sem preserveNullAndEmptyArrays para garantir match correto
+                {"$match": {"veiculo.placa": placa}}
+            ])
+
+        # Se precisar filtrar por nome de usuário, adiciona os estágios necessários
         if nome_usuario:
-            query["nome_usuario"] = {"$regex": nome_usuario, "$options": "i"}
+            pipeline.extend([
+                {"$set": {"usuario_id": {"$toObjectId": "$usuario_id"}}},
+                {"$lookup": {"from": "usuarios", "localField": "usuario_id", "foreignField": "_id", "as": "usuario"}},
+                {"$unwind": "$usuario"},
+                {"$match": {"usuario.nome": nome_usuario}}
+            ])
 
-        total_items = await self.collection.count_documents(query)
+        # Criar pipeline separada para contagem antes de aplicar paginação
+        count_pipeline = pipeline + [{"$count": "total_items"}]
+        total_items_cursor = await self.collection.aggregate(count_pipeline).to_list(length=1)
+        total_items = total_items_cursor[0]["total_items"] if total_items_cursor else 0
+
+        # Aplicar paginação na consulta principal
+        pagination_pipeline = pipeline + [
+            {"$sort": {"_id": ASCENDING}},  # Garante uma ordenação consistente
+            {"$skip": (page - 1) * limit},
+            {"$limit": limit},
+            {"$project": self._project_contrato()}
+        ]
+
+        contratos = await self.collection.aggregate(pagination_pipeline).to_list(length=limit)
         number_of_pages = (total_items + limit - 1) // limit
-
-        cursor = self.collection.find(query).skip((page - 1) * limit).limit(limit)
-        contratos = []
-        async for document in cursor:
-            contratos.append(Contrato(**document))
 
         return PaginationResult(
             page=page,
