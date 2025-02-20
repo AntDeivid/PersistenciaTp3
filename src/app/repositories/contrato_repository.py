@@ -7,6 +7,7 @@ from pymongo import ASCENDING
 
 from src.app.core.db.database import database
 from src.app.models.contrato import Contrato
+from src.app.dtos.contrato_dto import ContratoDTO
 from src.app.models.pagination_result import PaginationResult
 
 
@@ -15,9 +16,14 @@ class ContratoRepository:
         self.logger = logging.getLogger("app_logger.repositories.contrato_repository")
         self.collection = database.get_collection("contratos")
 
-    async def create(self, contrato: Contrato) -> Contrato | None:
+    async def create(self, contrato_dto: ContratoDTO) -> Optional[ContratoDTO]:
         try:
-            contrato_dict = contrato.model_dump(by_alias=True, exclude={"id"})
+            contrato_dict = contrato_dto.model_dump(by_alias=True)
+            contrato_dict['usuario_id'] = ObjectId(contrato_dict['usuario_id'])
+            contrato_dict['veiculo_id'] = ObjectId(contrato_dict['veiculo_id'])
+            if contrato_dict.get('pagamento_id'):
+                contrato_dict['pagamento_id'] = ObjectId(contrato_dict['pagamento_id'])
+                
             new_contrato = await self.collection.insert_one(contrato_dict)
             contrato_created = await self.collection.find_one({"_id": new_contrato.inserted_id})
 
@@ -25,13 +31,12 @@ class ContratoRepository:
                 self.logger.error("Error creating contract: Contract not found after insertion.")
                 return None
 
-            contrato_created["_id"] = str(contrato_created["_id"])
-            return Contrato(**contrato_created)
+            return ContratoDTO.from_model(Contrato(**contrato_created))
         except Exception as e:
             self.logger.error(f"Error creating contract: {e}")
             return None
 
-    async def get_by_id(self, contrato_id: str) -> Contrato | None:
+    async def get_by_id(self, contrato_id: str) -> Optional[ContratoDTO]:
         try:
             _id = ObjectId(contrato_id)
             contrato = await self.collection.find_one({"_id": _id})
@@ -39,19 +44,14 @@ class ContratoRepository:
             if not contrato:
                 return None
 
-            contrato["_id"] = str(contrato["_id"])
-            return Contrato(**contrato)
+            return ContratoDTO.from_model(Contrato(**contrato))
         except Exception as e:
             self.logger.error(f"Error getting contract with ID {contrato_id}: {e}")
             return None
 
-    async def get_all_no_pagination(self) -> List[Contrato]:
+    async def get_all_no_pagination(self) -> List[ContratoDTO]:
         contratos = await self.collection.find().to_list(length=1000)
-
-        for contrato in contratos:
-            contrato["_id"] = str(contrato["_id"])
-
-        return [Contrato(**contrato) for contrato in contratos]
+        return [ContratoDTO.from_model(Contrato(**contrato)) for contrato in contratos]
 
     async def get_all(self, data_inicial: Optional[datetime] = None, data_final: Optional[datetime] = None,
                       page: int = 1, limit: int = 10) -> PaginationResult:
@@ -68,8 +68,7 @@ class ContratoRepository:
         cursor = self.collection.find(query).skip((page - 1) * limit).limit(limit)
         contratos = []
         async for document in cursor:
-            document["_id"] = str(document["_id"])
-            contratos.append(Contrato(**document))
+            contratos.append(ContratoDTO.from_model(Contrato(**document)))
 
         return PaginationResult(
             page=page,
@@ -79,13 +78,14 @@ class ContratoRepository:
             data=contratos
         )
 
-    async def get_contratos_by_usuario_id(self, usuario_id: str) -> List[Contrato]:
+
+    async def get_contratos_by_usuario_id(self, usuario_id: str) -> List[ContratoDTO]:
         contratos = []
-        async for document in self.collection.find({"usuario_id": usuario_id}):
-            document["_id"] = str(document["_id"])
-            contratos.append(Contrato(**document))
+        async for document in self.collection.find({"usuario_id": ObjectId(usuario_id)}):
+            contratos.append(ContratoDTO.from_model(Contrato(**document)))
         return contratos
 
+    
     async def search(self, placa: Optional[str] = None, nome_usuario: Optional[str] = None, page: int = 1,
                      limit: int = 10) -> PaginationResult:
         pipeline = []
@@ -123,15 +123,24 @@ class ContratoRepository:
         contratos = await self.collection.aggregate(pagination_pipeline).to_list(length=limit)
         number_of_pages = (total_items + limit - 1) // limit
 
+        contratos_dto = [ContratoDTO.from_model(Contrato(
+            id=ObjectId(contrato["_id"]) if ObjectId.is_valid(contrato["_id"]) else None,
+            usuario_id=ObjectId(contrato["usuario_id"]) if ObjectId.is_valid(contrato["usuario_id"]) else None,
+            veiculo_id=ObjectId(contrato["veiculo_id"]) if ObjectId.is_valid(contrato["veiculo_id"]) else None,
+            pagamento_id=ObjectId(contrato["pagamento_id"]) if contrato.get("pagamento_id") and ObjectId.is_valid(contrato["pagamento_id"]) else None,
+            data_inicio=contrato["data_inicio"],
+            data_fim=contrato["data_fim"]
+        )) for contrato in contratos]
+
         return PaginationResult(
             page=page,
             limit=limit,
             total_items=total_items,
             number_of_pages=number_of_pages,
-            data=contratos
+            data=contratos_dto
         )
 
-    async def get_contratos_by_veiculo_marca_pagamento_pago(self, marca: str, pagamento_pago: Optional[bool] = None) -> List[Contrato]:
+    async def get_contratos_by_veiculo_marca_pagamento_pago(self, marca: str, pagamento_pago: Optional[bool] = None) -> List[ContratoDTO]:
         pipeline = [
             {"$lookup": {"from": "veiculos", "localField": "veiculo_id", "foreignField": "_id", "as": "veiculo"}},
             {"$unwind": "$veiculo"},
@@ -149,9 +158,16 @@ class ContratoRepository:
         pipeline.extend([{"$project": self._project_contrato()}])
 
         contratos = await self.collection.aggregate(pipeline).to_list(length=1000)
-        return [Contrato(**contrato) for contrato in contratos]
+        return [ContratoDTO.from_model(Contrato(
+            id=ObjectId(contrato["_id"]) if ObjectId.is_valid(contrato["_id"]) else None,
+            usuario_id=ObjectId(contrato["usuario_id"]) if ObjectId.is_valid(contrato["usuario_id"]) else None,
+            veiculo_id=ObjectId(contrato["veiculo_id"]) if ObjectId.is_valid(contrato["veiculo_id"]) else None,
+            pagamento_id=ObjectId(contrato["pagamento_id"]) if contrato.get("pagamento_id") and ObjectId.is_valid(contrato["pagamento_id"]) else None,
+            data_inicio=contrato["data_inicio"],
+            data_fim=contrato["data_fim"]
+        )) for contrato in contratos]
 
-    async def get_contratos_by_pagamento_vencimento_month_and_usuario_id(self, vencimento_month: datetime, usuario_id: Optional[str] = None) -> List[Contrato]:
+    async def get_contratos_by_pagamento_vencimento_month_and_usuario_id(self, vencimento_month: datetime, usuario_id: Optional[str] = None) -> List[ContratoDTO]:
         vencimento_inicio = vencimento_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         vencimento_fim = (vencimento_inicio + timedelta(days=31)).replace(day=1)
 
@@ -162,16 +178,24 @@ class ContratoRepository:
         ]
 
         if usuario_id:
-            pipeline.extend([{ "$match": {"usuario_id": usuario_id} }])
+            pipeline.extend([{ "$match": {"usuario_id": ObjectId(usuario_id)} }])
 
         # Ajuste final do pipeline para remover os arrays e projetar apenas os campos necessários para o formato Contrato
         pipeline.extend([{"$project": self._project_contrato()}])
 
         contratos = await self.collection.aggregate(pipeline).to_list(length=1000)
-        return [Contrato(**contrato) for contrato in contratos]
+        return [ContratoDTO.from_model(Contrato(
+            id=ObjectId(contrato["_id"]) if ObjectId.is_valid(contrato["_id"]) else None,
+            usuario_id=ObjectId(contrato["usuario_id"]) if ObjectId.is_valid(contrato["usuario_id"]) else None,
+            veiculo_id=ObjectId(contrato["veiculo_id"]) if ObjectId.is_valid(contrato["veiculo_id"]) else None,
+            pagamento_id=ObjectId(contrato["pagamento_id"]) if contrato.get("pagamento_id") and ObjectId.is_valid(contrato["pagamento_id"]) else None,
+            data_inicio=contrato["data_inicio"],
+            data_fim=contrato["data_fim"]
+        )) for contrato in contratos]
 
-    async def update(self, contrato_id: str, contrato: Contrato) -> Optional[Contrato]:
+    async def update(self, contrato_id: str, contrato_dto: ContratoDTO) -> Optional[ContratoDTO]:
         try:
+            contrato = contrato_dto.to_model()
             contrato_dict = contrato.model_dump(by_alias=True)
             update_result = await self.collection.update_one({"_id": ObjectId(contrato_id)}, {"$set": contrato_dict})
             if update_result.modified_count > 0:
@@ -187,7 +211,8 @@ class ContratoRepository:
         return result.deleted_count > 0
 
     async def get_quantidade_contratos(self) -> int:
-        return await self.collection.count_documents({})
+        total_contratos = await self.collection.count_documents({})
+        return total_contratos
 
     def _project_contrato(self):
         return {
