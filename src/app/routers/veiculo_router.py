@@ -37,17 +37,6 @@ async def get_all_veiculos(
 ) -> PaginationResult:
     return await veiculo_repository.get_all(tipo, marca, modelo, ano, page, limit)
 
-@veiculo_router.get("/{veiculo_id}", response_model=VeiculoDTO)
-async def get_veiculo_by_id(veiculo_id: str, veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
-    veiculo = await veiculo_repository.get_by_id(veiculo_id)
-    if not veiculo:
-        raise HTTPException(status_code=404, detail="Veículo não encontrado")
-    return veiculo
-
-@veiculo_router.get("/com-manutencoes", response_model=list[VeiculoDTO])
-async def get_veiculos_com_manutencoes(veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
-    return await veiculo_repository.get_veiculos_com_manutencoes()
-
 @veiculo_router.get("/by-tipo-manutencao/{tipo_manutencao}", response_model=list[VeiculoDTO])
 async def get_veiculos_by_tipo_manutencao(tipo_manutencao: str, veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
     return await veiculo_repository.get_veiculos_by_tipo_manutencao(tipo_manutencao)
@@ -59,6 +48,13 @@ async def count_veiculos(veiculo_repository: VeiculoRepository = Depends(get_vei
 @veiculo_router.get("/custo-medio-manutencoes", response_model=list[dict])
 async def get_custo_medio_manutencoes_por_veiculo(veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
     return await veiculo_repository.get_custo_medio_manutencoes_por_veiculo()
+
+@veiculo_router.get("/{veiculo_id}", response_model=VeiculoDTO)
+async def get_veiculo_by_id(veiculo_id: str, veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
+    veiculo = await veiculo_repository.get_by_id(veiculo_id)
+    if not veiculo:
+        raise HTTPException(status_code=404, detail="Veículo não encontrado")
+    return veiculo
 
 @veiculo_router.put("/{veiculo_id}", response_model=VeiculoDTO)
 async def update_veiculo(veiculo_id: str, veiculo_data: dict, veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
