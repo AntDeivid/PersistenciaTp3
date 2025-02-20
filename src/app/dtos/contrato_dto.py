@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
+from bson import ObjectId
 from pydantic import BaseModel
 
 from src.app.models.contrato import Contrato
@@ -23,4 +24,14 @@ class ContratoDTO(BaseModel):
             pagamento_id=str(contrato.pagamento_id) if contrato.pagamento_id else None,
             data_inicio=contrato.data_inicio,
             data_fim=contrato.data_fim
+        )
+
+    @classmethod
+    def to_model(cls) -> Contrato:
+        return Contrato(
+            usuario_id=ObjectId(cls.usuario_id),
+            veiculo_id=ObjectId(cls.veiculo_id),
+            pagamento_id=ObjectId(cls.pagamento_id) if cls.pagamento_id else None,
+            data_inicio=cls.data_inicio,
+            data_fim=cls.data_fim
         )

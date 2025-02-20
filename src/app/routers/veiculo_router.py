@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
 
-from src.app.models.veiculo import Veiculo
+from src.app.dtos.veiculo_dto import VeiculoDTO
 from src.app.models.pagination_result import PaginationResult
 from src.app.repositories.veiculo_repository import VeiculoRepository
 
@@ -14,14 +14,14 @@ veiculo_router.tags = ["Veículos"]
 def get_veiculo_repository() -> VeiculoRepository:
     return VeiculoRepository()
 
-@veiculo_router.post("/", response_model=Veiculo, status_code=201)
-async def create_veiculo(veiculo: Veiculo, veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
+@veiculo_router.post("/", response_model=VeiculoDTO, status_code=201)
+async def create_veiculo(veiculo: VeiculoDTO, veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
     created_veiculo = await veiculo_repository.create(veiculo)
     if not created_veiculo:
         raise HTTPException(status_code=500, detail="Erro ao criar veículo")
     return created_veiculo
 
-@veiculo_router.get("/all-no-pagination", response_model=list[Veiculo])
+@veiculo_router.get("/all-no-pagination", response_model=list[VeiculoDTO])
 async def get_all_veiculos_no_pagination(veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
     return await veiculo_repository.get_all_no_pagination()
 
@@ -37,18 +37,18 @@ async def get_all_veiculos(
 ) -> PaginationResult:
     return await veiculo_repository.get_all(tipo, marca, modelo, ano, page, limit)
 
-@veiculo_router.get("/{veiculo_id}", response_model=Veiculo)
+@veiculo_router.get("/{veiculo_id}", response_model=VeiculoDTO)
 async def get_veiculo_by_id(veiculo_id: str, veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
     veiculo = await veiculo_repository.get_by_id(veiculo_id)
     if not veiculo:
         raise HTTPException(status_code=404, detail="Veículo não encontrado")
     return veiculo
 
-@veiculo_router.get("/com-manutencoes", response_model=list[Veiculo])
+@veiculo_router.get("/com-manutencoes", response_model=list[VeiculoDTO])
 async def get_veiculos_com_manutencoes(veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
     return await veiculo_repository.get_veiculos_com_manutencoes()
 
-@veiculo_router.get("/by-tipo-manutencao/{tipo_manutencao}", response_model=list[Veiculo])
+@veiculo_router.get("/by-tipo-manutencao/{tipo_manutencao}", response_model=list[VeiculoDTO])
 async def get_veiculos_by_tipo_manutencao(tipo_manutencao: str, veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
     return await veiculo_repository.get_veiculos_by_tipo_manutencao(tipo_manutencao)
 
@@ -60,7 +60,7 @@ async def count_veiculos(veiculo_repository: VeiculoRepository = Depends(get_vei
 async def get_custo_medio_manutencoes_por_veiculo(veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
     return await veiculo_repository.get_custo_medio_manutencoes_por_veiculo()
 
-@veiculo_router.put("/{veiculo_id}", response_model=Veiculo)
+@veiculo_router.put("/{veiculo_id}", response_model=VeiculoDTO)
 async def update_veiculo(veiculo_id: str, veiculo_data: dict, veiculo_repository: VeiculoRepository = Depends(get_veiculo_repository)):
     updated_veiculo = await veiculo_repository.update(veiculo_id, veiculo_data)
     if not updated_veiculo:
