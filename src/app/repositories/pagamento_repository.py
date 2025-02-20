@@ -7,17 +7,19 @@ from bson import ObjectId
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
-from src.app.core.db.database import database 
-from src.app.models.pagamento import Pagamento 
+from src.app.core.db.database import database
+from src.app.dtos.pagamento_dto import PagamentoDTO  
+from src.app.models.pagamento import Pagamento
 
 logger = logging.getLogger('app_logger.pagamento_repository')
+
 
 class PagamentoRepository:
 
     def __init__(self):
         self.collection = database.get_collection("pagamentos")
-    
-    async def create(self, pagamento: Pagamento) -> Optional[Pagamento]:
+
+    async def create(self, pagamento: Pagamento) -> Optional[PagamentoDTO]:
         try:
             pagamento_dict = pagamento.dict(by_alias=True, exclude={"id"})
             novo_pagamento = await self.collection.insert_one(pagamento_dict)
@@ -27,24 +29,23 @@ class PagamentoRepository:
                 logger.error("Erro ao criar pagamento: Pagamento não encontrado após inserção")
                 return None
 
-            pagamento_criado["_id"] = str(pagamento_criado["_id"])
             logger.info(f"Pagamento criado com sucesso: {pagamento_criado}")
-            return Pagamento(**pagamento_criado)
+            pagamento = Pagamento(**pagamento_criado)
+            return PagamentoDTO.from_model(pagamento)
 
         except DuplicateKeyError as e:
             logger.error(f"Erro ao criar pagamento: Pagamento duplicado - {e}")
-            raise ValueError("Erro ao criar pagamento: Pagamento duplicado") from e  
+            raise ValueError("Erro ao criar pagamento: Pagamento duplicado") from e
         except Exception as e:
             logger.error(f"Erro ao criar pagamento: {e}")
             return None
 
-    async def get_all_no_pagination(self) -> List[Pagamento]:
+    async def get_all_no_pagination(self) -> List[PagamentoDTO]:
         try:
             pagamentos = await self.collection.find().to_list(length=None)
-            for pagamento in pagamentos:
-                pagamento["_id"] = str(pagamento["_id"])
             logger.info(f"Pagamentos listados sem paginação: {pagamentos}")
-            return [Pagamento(**pagamento) for pagamento in pagamentos]
+            result = [Pagamento(**pagamento) for pagamento in pagamentos]
+            return [PagamentoDTO.from_model(pagamento) for pagamento in result]
         except Exception as e:
             logger.error(f"Erro ao listar pagamentos sem paginação: {e}")
             return []
@@ -56,7 +57,7 @@ class PagamentoRepository:
         pago: Optional[bool] = None,
         page: Optional[int] = 1,
         limit: Optional[int] = 10
-    ) -> List[Pagamento]:
+    ) -> List[PagamentoDTO]:
         try:
             filtro = {}
             if data_inicial and data_final:
@@ -71,15 +72,14 @@ class PagamentoRepository:
             skip = (page - 1) * limit
             pagamentos = await self.collection.find(filtro).skip(skip).limit(limit).to_list(length=limit)
 
-            for pagamento in pagamentos:
-                pagamento["_id"] = str(pagamento["_id"])
             logger.info(f"Pagamentos encontrados: {pagamentos}")
-            return [Pagamento(**pagamento) for pagamento in pagamentos]
+            result = [Pagamento(**pagamento) for pagamento in pagamentos]
+            return [PagamentoDTO.from_model(pagamento) for pagamento in result]
         except Exception as e:
             logger.error(f"Erro ao buscar pagamentos: {e}")
             return []
 
-    async def get_by_id(self, pagamento_id: str) -> Optional[Pagamento]:
+    async def get_by_id(self, pagamento_id: str) -> Optional[PagamentoDTO]:
         try:
             filtro = {"_id": ObjectId(pagamento_id)} if ObjectId.is_valid(pagamento_id) else {"_id": pagamento_id}
             pagamento = await self.collection.find_one(filtro)
@@ -88,14 +88,13 @@ class PagamentoRepository:
                 logger.warning(f"Pagamento com ID {pagamento_id} não encontrado")
                 return None
 
-            pagamento["_id"] = str(pagamento["_id"])
             logger.info(f"Pagamento encontrado com ID {pagamento_id}: {pagamento}")
-            return Pagamento(**pagamento)
+            return PagamentoDTO.from_model(Pagamento(**pagamento))
         except Exception as e:
             logger.error(f"Erro ao buscar pagamento com ID {pagamento_id}: {e}")
             return None
 
-    async def update(self, pagamento_id: str, pagamento: Pagamento) -> Optional[Pagamento]:
+    async def update(self, pagamento_id: str, pagamento: Pagamento) -> Optional[PagamentoDTO]:
         try:
             if not ObjectId.is_valid(pagamento_id):
                 logger.warning(f"ID de pagamento inválido: {pagamento_id}")
@@ -105,13 +104,13 @@ class PagamentoRepository:
             result = await self.collection.find_one_and_update(
                 {"_id": ObjectId(pagamento_id)},
                 {"$set": pagamento_dict},
-                return_document=ReturnDocument.AFTER  
+                return_document=ReturnDocument.AFTER
             )
 
             if result:
-                result["_id"] = str(result["_id"])
                 logger.info(f"Pagamento atualizado com sucesso: {result}")
-                return Pagamento(**result)
+                pagamento = Pagamento(**result)
+                return PagamentoDTO.from_model(pagamento)
             else:
                 logger.warning(f"Pagamento com ID {pagamento_id} não encontrado para atualização")
                 return None
@@ -135,16 +134,16 @@ class PagamentoRepository:
         except Exception as e:
             logger.error(f"Erro ao deletar pagamento com ID {pagamento_id}: {e}")
             return False
-        
+
     from typing import Optional
 
-    async def get_pagamentos_pendentes_por_usuario(self, usuario_id: Optional[str] = None) -> List[dict]:
+    async def get_pagamentos_pendentes_por_usuario(self, usuario_id: Optional[str] = None) -> List[Dict[str, Any]]:
         try:
             pipeline = [
                 {
                     "$lookup": {
                         "from": "contratos",
-                        "localField": "_id", 
+                        "localField": "_id",
                         "foreignField": "pagamento_id",
                         "as": "contrato"
                     }
@@ -155,7 +154,7 @@ class PagamentoRepository:
                 {
                     "$lookup": {
                         "from": "usuarios",
-                        "localField": "contrato.usuario_id",  
+                        "localField": "contrato.usuario_id",
                         "foreignField": "_id",
                         "as": "usuario"
                     }
@@ -165,8 +164,8 @@ class PagamentoRepository:
                 },
                 {
                     "$match": {
-                        "pago": False, 
-                        **({"usuario._id": ObjectId(usuario_id)} if usuario_id else {}) 
+                        "pago": False,
+                        **({"usuario._id": ObjectId(usuario_id)} if usuario_id else {})
                     }
                 },
                 {
@@ -174,13 +173,12 @@ class PagamentoRepository:
                         "_id": "$usuario._id",
                         "nome": {"$first": "$usuario.nome"},
                         "email": {"$first": "$usuario.email"},
-                        "total_pendente": {"$sum": "$valor"}  
+                        "total_pendente": {"$sum": "$valor"}
                     }
                 },
                 {
                     "$project": {
                         "_id": 0,
-                        "usuario_id": "$_id",
                         "nome": 1,
                         "email": 1,
                         "total_pendente": 1
@@ -193,10 +191,10 @@ class PagamentoRepository:
                 }
             ]
 
-            result = await self.collection.aggregate(pipeline).to_list(length=None)
-            logger.info(f"Pagamentos pendentes por usuário (usuario_id={usuario_id}): {result}")
-            return result
+            pagamentos_pendentes = await self.collection.aggregate(pipeline).to_list(length=None)
+            logger.info(f"Pagamentos pendentes por usuário (usuario_id={usuario_id}): {pagamentos_pendentes}")
+            return pagamentos_pendentes
 
         except Exception as e:
-            logger.error(f"Erro ao consultar pagamentos pendentes por usuário (usuario_id={usuario_id}): {e}")
+            logger.error(f"Erro ao buscar pagamentos pendentes por usuário (usuario_id={usuario_id}): {e}")
             return []

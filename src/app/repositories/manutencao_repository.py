@@ -8,6 +8,7 @@ from pymongo.errors import DuplicateKeyError
 
 from src.app.core.db.database import database  
 from src.app.models.manutencao import Manutencao 
+from src.app.dtos.manutencao_dto import ManutencaoDTO
 
 logger = logging.getLogger('app_logger.manutencao_repository')
 
@@ -16,7 +17,7 @@ class ManutencaoRepository:
     def __init__(self):
         self.collection = database.get_collection("manutencoes")
 
-    async def create(self, manutencao: Manutencao) -> Optional[Manutencao]:
+    async def create(self, manutencao: Manutencao) -> Optional[ManutencaoDTO]:
         try:
             manutencao_dict = manutencao.dict(by_alias=True, exclude={"id"})
             nova_manutencao = await self.collection.insert_one(manutencao_dict)
@@ -26,9 +27,8 @@ class ManutencaoRepository:
                 logger.error("Erro ao criar manutenção: Manutenção não encontrada após a inserção.")
                 return None
 
-            manutencao_criada["_id"] = str(manutencao_criada["_id"])
             logger.info(f"Manutenção criada com sucesso: {manutencao_criada}")
-            return Manutencao(**manutencao_criada)
+            return ManutencaoDTO.from_model(Manutencao(**manutencao_criada))
 
         except DuplicateKeyError as e:
             logger.error(f"Erro ao criar manutenção: Manutenção duplicada - {e}")
@@ -37,13 +37,12 @@ class ManutencaoRepository:
             logger.error(f"Erro ao criar manutenção: {e}")
             return None
 
-    async def get_all_no_pagination(self) -> List[Manutencao]:
+    async def get_all_no_pagination(self) -> List[ManutencaoDTO]:
         try:
             manutencoes = await self.collection.find().to_list(length=None)
-            for manutencao in manutencoes:
-                manutencao["_id"] = str(manutencao["_id"])
             logger.info(f"Manutenções listadas sem paginação: {manutencoes}")
-            return [Manutencao(**manutencao) for manutencao in manutencoes]
+            result = [Manutencao(**manutencao) for manutencao in manutencoes]
+            return [ManutencaoDTO.from_model(manutencao) for manutencao in result]
         except Exception as e:
             logger.error(f"Erro ao listar manutenções sem paginação: {e}")
             return []
@@ -55,7 +54,7 @@ class ManutencaoRepository:
         tipo_manutencao: Optional[str] = None,
         page: Optional[int] = 1,
         limit: Optional[int] = 10
-    ) -> List[Manutencao]:
+    ) -> List[ManutencaoDTO]:
         try:
             filtro = {}
             if data_inicial and data_final:
@@ -70,15 +69,14 @@ class ManutencaoRepository:
             skip = (page - 1) * limit
             manutencoes = await self.collection.find(filtro).skip(skip).limit(limit).to_list(length=limit)
 
-            for manutencao in manutencoes:
-                manutencao["_id"] = str(manutencao["_id"])
             logger.info(f"Manutenções encontradas: {manutencoes}")
-            return [Manutencao(**manutencao) for manutencao in manutencoes]
+            result = [Manutencao(**manutencao) for manutencao in manutencoes]
+            return [ManutencaoDTO.from_model(manutencao) for manutencao in result]
         except Exception as e:
             logger.error(f"Erro ao buscar manutenções: {e}")
             return []
 
-    async def get_by_id(self, manutencao_id: str) -> Optional[Manutencao]:
+    async def get_by_id(self, manutencao_id: str) -> Optional[ManutencaoDTO]:
         try:
             filtro = {"_id": ObjectId(manutencao_id)} if ObjectId.is_valid(manutencao_id) else {"_id": manutencao_id}
             manutencao = await self.collection.find_one(filtro)
@@ -87,14 +85,13 @@ class ManutencaoRepository:
                 logger.warning(f"Manutenção com ID {manutencao_id} não encontrada")
                 return None
 
-            manutencao["_id"] = str(manutencao["_id"])
             logger.info(f"Manutenção encontrada com ID {manutencao_id}: {manutencao}")
-            return Manutencao(**manutencao)
+            return ManutencaoDTO.from_model(Manutencao(**manutencao))
         except Exception as e:
             logger.error(f"Erro ao buscar manutenção com ID {manutencao_id}: {e}")
             return None
 
-    async def update(self, manutencao_id: str, manutencao: Manutencao) -> Optional[Manutencao]:
+    async def update(self, manutencao_id: str, manutencao: Manutencao) -> Optional[ManutencaoDTO]:
         try:
             if not ObjectId.is_valid(manutencao_id):
                 logger.warning(f"ID de manutenção inválido: {manutencao_id}")
@@ -108,9 +105,8 @@ class ManutencaoRepository:
             )
 
             if result:
-                result["_id"] = str(result["_id"])
                 logger.info(f"Manutenção atualizada com sucesso: {result}")
-                return Manutencao(**result)
+                return ManutencaoDTO.from_model(Manutencao(**result))
             else:
                 logger.warning(f"Manutenção com ID {manutencao_id} não encontrada para atualização")
                 return None
