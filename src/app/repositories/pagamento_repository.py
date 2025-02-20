@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict
+from typing import Any
 
 from bson import ObjectId
 from pymongo import ReturnDocument
@@ -134,3 +135,68 @@ class PagamentoRepository:
         except Exception as e:
             logger.error(f"Erro ao deletar pagamento com ID {pagamento_id}: {e}")
             return False
+        
+    from typing import Optional
+
+    async def get_pagamentos_pendentes_por_usuario(self, usuario_id: Optional[str] = None) -> List[dict]:
+        try:
+            pipeline = [
+                {
+                    "$lookup": {
+                        "from": "contratos",
+                        "localField": "_id", 
+                        "foreignField": "pagamento_id",
+                        "as": "contrato"
+                    }
+                },
+                {
+                    "$unwind": "$contrato"
+                },
+                {
+                    "$lookup": {
+                        "from": "usuarios",
+                        "localField": "contrato.usuario_id",  
+                        "foreignField": "_id",
+                        "as": "usuario"
+                    }
+                },
+                {
+                    "$unwind": "$usuario"
+                },
+                {
+                    "$match": {
+                        "pago": False, 
+                        **({"usuario._id": ObjectId(usuario_id)} if usuario_id else {}) 
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": "$usuario._id",
+                        "nome": {"$first": "$usuario.nome"},
+                        "email": {"$first": "$usuario.email"},
+                        "total_pendente": {"$sum": "$valor"}  
+                    }
+                },
+                {
+                    "$project": {
+                        "_id": 0,
+                        "usuario_id": "$_id",
+                        "nome": 1,
+                        "email": 1,
+                        "total_pendente": 1
+                    }
+                },
+                {
+                    "$sort": {
+                        "total_pendente": -1
+                    }
+                }
+            ]
+
+            result = await self.collection.aggregate(pipeline).to_list(length=None)
+            logger.info(f"Pagamentos pendentes por usuário (usuario_id={usuario_id}): {result}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Erro ao consultar pagamentos pendentes por usuário (usuario_id={usuario_id}): {e}")
+            return []
