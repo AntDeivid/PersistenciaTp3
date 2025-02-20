@@ -5,6 +5,7 @@ from typing import List, Optional
 from bson import ObjectId
 
 from src.app.core.db.database import database
+from src.app.dtos.veiculo_manutencao_dto import VeiculoManutencaoDTO
 from src.app.models.manutencao import Manutencao
 from src.app.models.veiculo_manutencao import VeiculoManutencao
 
@@ -14,9 +15,11 @@ class VeiculoManutencaoRepository:
         self.logger = logging.getLogger("app_logger.repositories.veiculo_manutencao_repository")
         self.collection = database.get_collection("veiculo_manutencoes")
 
-    async def create(self, veiculo_manutencao: VeiculoManutencao) -> VeiculoManutencao:
+    async def create(self, veiculo_manutencao: VeiculoManutencaoDTO) -> VeiculoManutencaoDTO:
         try:
             veiculo_manutencao_dict = veiculo_manutencao.model_dump(by_alias=True, exclude={"id"})
+            veiculo_manutencao_dict["veiculo_id"] = ObjectId(veiculo_manutencao_dict["veiculo_id"])
+            veiculo_manutencao_dict["manutencao_id"] = ObjectId(veiculo_manutencao_dict["manutencao_id"])
             new_veiculo_manutencao = await self.collection.insert_one(veiculo_manutencao_dict)
             veiculo_manutencao_created = await self.collection.find_one(
                 {"_id": new_veiculo_manutencao.inserted_id}
@@ -26,25 +29,22 @@ class VeiculoManutencaoRepository:
                 self.logger.error("Erro ao criar veículo_manutencao: Registro não encontrado após inserção.")
                 return None
 
-            veiculo_manutencao_created["_id"] = str(veiculo_manutencao_created["_id"])
-            return VeiculoManutencao(**veiculo_manutencao_created)
+            return VeiculoManutencaoDTO.from_model(VeiculoManutencao(**veiculo_manutencao_created))
         except Exception as e:
             self.logger.error(f"Erro ao criar veículo_manutencao: {e}")
             return None
 
-    async def get_all(self) -> List[VeiculoManutencao]:
+    async def get_all(self) -> List[VeiculoManutencaoDTO]:
         veiculo_manutencoes = await self.collection.find().to_list(length=1000)
-        for vm in veiculo_manutencoes:
-            vm["_id"] = str(vm["_id"])
-        return [VeiculoManutencao(**vm) for vm in veiculo_manutencoes]
+        return [VeiculoManutencaoDTO.from_model(VeiculoManutencao(**vm)) for vm in veiculo_manutencoes]
 
-    async def get_by_id(self, veiculo_manutencao_id: str) -> Optional[VeiculoManutencao]:
+    async def get_by_id(self, veiculo_manutencao_id: str) -> Optional[VeiculoManutencaoDTO]:
         try:
             veiculo_manutencao = await self.collection.find_one({"_id": ObjectId(veiculo_manutencao_id)})
+            print("retorno", veiculo_manutencao)
             if not veiculo_manutencao:
                 return None
-            veiculo_manutencao["_id"] = str(veiculo_manutencao["_id"])
-            return VeiculoManutencao(**veiculo_manutencao)
+            return VeiculoManutencaoDTO.from_model(VeiculoManutencao(**veiculo_manutencao))
         except Exception as e:
             self.logger.error(f"Erro ao buscar veículo_manutencao com ID {veiculo_manutencao_id}: {e}")
             return None
@@ -85,49 +85,6 @@ class VeiculoManutencaoRepository:
         ]
         return await self.collection.aggregate(pipeline).to_list(length=1000)
 
-    async def get_veiculos_com_mais_manutencoes(self, start_date: datetime, end_date: datetime) -> List[dict]:
-        pipeline = [
-            {
-                "$lookup": {
-                    "from": "manutencoes",
-                    "localField": "manutencao_id",
-                    "foreignField": "_id",
-                    "as": "manutencao"
-                }
-            },
-            {
-                "$unwind": "$manutencao"
-            },
-            {
-                "$match": {
-                    "manutencao.data": {"$gte": start_date, "$lte": end_date}
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "veiculos",
-                    "localField": "veiculo_id",
-                    "foreignField": "_id",
-                    "as": "veiculo"
-                }
-            },
-            {
-                "$unwind": "$veiculo"
-            },
-            {
-                "$group": {
-                    "_id": "$veiculo._id",
-                    "modelo": {"$first": "$veiculo.modelo"},
-                    "marca": {"$first": "$veiculo.marca"},
-                    "num_manutencoes": {"$sum": 1}
-                }
-            },
-            {
-                "$sort": {"num_manutencoes": -1}
-            }
-        ]
-        return await self.collection.aggregate(pipeline).to_list(length=1000)
-
     async def get_manutencao_mais_cara_por_veiculo(self) -> List[dict]:
         pipeline = [
             {
@@ -153,35 +110,27 @@ class VeiculoManutencaoRepository:
                 "$unwind": "$veiculo"
             },
             {
+                "$sort": {"manutencao.custo": -1}
+            },
+            {
                 "$group": {
                     "_id": "$veiculo._id",
                     "modelo": {"$first": "$veiculo.modelo"},
                     "marca": {"$first": "$veiculo.marca"},
-                    "max_custo": {"$max": "$manutencao.custo"}
+                    "tipo_manutencao": {"$first": "$manutencao.tipo_manutencao"},
+                    "custo": {"$first": "$manutencao.custo"},
+                    "observacao": {"$first": "$manutencao.observacao"}
                 }
             },
             {
-                "$lookup": {
-                    "from": "manutencoes",
-                    "localField": "max_custo",
-                    "foreignField": "custo",
-                    "as": "manutencao_mais_cara"
-                }
-            },
-            {
-                "$unwind": "$manutencao_mais_cara"
-            },
-            {
-                "$project": {
-                    "modelo": 1,
-                    "marca": 1,
-                    "tipo_manutencao": "$manutencao_mais_cara.tipo_manutencao",
-                    "custo": "$manutencao_mais_cara.custo",
-                    "observacao": "$manutencao_mais_cara.observacao"
-                }
+                "$sort": {"custo": -1}
             }
         ]
-        return await self.collection.aggregate(pipeline).to_list(length=1000)
+
+        result = await self.collection.aggregate(pipeline).to_list(length=1000)
+        for i in result:
+            i["_id"] = str(i["_id"])
+        return result
 
     async def get_veiculos_com_maior_custo_manutencao(self) -> List[dict]:
         pipeline = [
@@ -219,12 +168,16 @@ class VeiculoManutencaoRepository:
                 "$sort": {"custo_total": -1}
             }
         ]
-        return await self.collection.aggregate(pipeline).to_list(length=1000)
+
+        result = await self.collection.aggregate(pipeline).to_list(length=1000)
+        for i in result:
+            i["_id"] = str(i["_id"])
+        return result
 
     async def get_quantidade_veiculos_manutencao(self) -> int:
         return await self.collection.count_documents({})
 
-    async def update(self, veiculo_manutencao_id: str, veiculo_manutencao_data: dict) -> Optional[VeiculoManutencao]:
+    async def update(self, veiculo_manutencao_id: str, veiculo_manutencao_data: dict) -> Optional[VeiculoManutencaoDTO]:
         try:
             update_result = await self.collection.update_one(
                 {"_id": ObjectId(veiculo_manutencao_id)},

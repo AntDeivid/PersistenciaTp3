@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class VeiculoManutencao(BaseModel):
-    id: Optional[str] = Field(default=None, alias="_id")
+    id: Optional[ObjectId] = Field(default=None, alias="_id")
     veiculo_id: ObjectId = Field(...)
     manutencao_id: ObjectId = Field(...)
 
