@@ -171,6 +171,9 @@ async def main():
     COLLECTION_VEICULO = database.get_collection("veiculos")
     COLLECTION_VEICULO_MANUTENCAO = database.get_collection("veiculo_manutencoes")
 
+    usuarios, veiculos, pagamentos, manutencoes = generate_random_data(15, random_generator)
+    await populate_database(COLLECTION_USUARIO, COLLECTION_VEICULO, COLLECTION_PAGAMENTO, COLLECTION_MANUTENCAO, usuarios, veiculos, pagamentos, manutencoes)
+
     contratos = await generate_contratos(COLLECTION_USUARIO, COLLECTION_VEICULO, COLLECTION_PAGAMENTO, random_generator, 15)
     veiculo_manutencoes = await generate_veiculo_manutencoes(COLLECTION_VEICULO, COLLECTION_MANUTENCAO, random_generator, 15)
 
